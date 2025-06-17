@@ -28,7 +28,11 @@
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
-	"vars": { "BOT_TOKEN": "7985061942:AAFTWqAkuPvTiRrqIDDh6Mn4cpoStF8fBqg" }
+	"vars": {
+		"BOT_TOKEN": "7985061942:AAFTWqAkuPvTiRrqIDDh6Mn4cpoStF8fBqg",
+		"SUPABASE_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcHRjc3pjamRwbG91cHd6bWNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxNzk4NTgsImV4cCI6MjA2NTc1NTg1OH0.vkQOrj5VAQ4mXQrZzHZupJqUmGUG6BsujM8MFAymjl8",
+		"SUPABASE_URL": "https://bsptcszcjdploupwzmcn.supabase.co"
+	}
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
