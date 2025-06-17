@@ -11,16 +11,18 @@ const options = {
     timeout: 10000
 };
 
+const LOCALSTORAGE_COORDINATES_KEY = "geo-coordinates"
+
 let watchId = null;
 
 startButton.addEventListener('click', () => {
     startTracking();
 
-    console.log(JSON.parse(window.localStorage.getItem('geo')));
+    console.log(JSON.parse(window.localStorage.getItem(LOCALSTORAGE_COORDINATES_KEY)));
 });
 
 endButton.addEventListener('click', () => {
-    let coordinates = JSON.parse(window.localStorage.getItem('geo'));
+    let coordinates = JSON.parse(window.localStorage.getItem(LOCALSTORAGE_COORDINATES_KEY));
 
     let validSpeeds = coordinates
         .map(c => c.speed)
@@ -39,7 +41,7 @@ endButton.addEventListener('click', () => {
     averageSpeedElement.innerText = `Average Speed: ${averageSpeed}`;
     document.getElementById('distance').innerText = `Distance: ${(totalDistance / 1000).toFixed(2)} km`;
 
-    window.localStorage.removeItem('geo');
+    window.localStorage.removeItem(LOCALSTORAGE_COORDINATES_KEY);
 
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
@@ -48,7 +50,7 @@ endButton.addEventListener('click', () => {
 });
 
 buildMapButton.addEventListener('click', () => {
-    let coords = JSON.parse(window.localStorage.getItem('geo'));
+    let coords = JSON.parse(window.localStorage.getItem(LOCALSTORAGE_COORDINATES_KEY));
 
     if (!coords)
         return;
@@ -58,7 +60,6 @@ buildMapButton.addEventListener('click', () => {
     const map = L.map('map').setView(latLngs[0], 15); // Center on first coordinate
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
 
     L.polyline(latLngs, { color: 'blue', weight: 5 }).addTo(map);
