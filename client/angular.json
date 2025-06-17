@@ -17,7 +17,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": "client/dist/cloudflare",
+            "outputPath": "dist/cloudflare",
             "browser": "src/main.ts",
             "polyfills": [
               "zone.js"
