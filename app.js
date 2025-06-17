@@ -4,6 +4,7 @@ const buildMapButton = document.getElementById('build-map-button');
 
 const maxSpeedElement = document.getElementById('max-speed');
 const averageSpeedElement = document.getElementById('average-speed');
+const distanceElement = document.getElementById('distance');
 
 const options = {
     enableHighAccuracy: true,
@@ -17,29 +18,12 @@ let watchId = null;
 
 startButton.addEventListener('click', () => {
     startTracking();
-
-    console.log(JSON.parse(window.localStorage.getItem(LOCALSTORAGE_COORDINATES_KEY)));
 });
 
 endButton.addEventListener('click', () => {
     let coordinates = JSON.parse(window.localStorage.getItem(LOCALSTORAGE_COORDINATES_KEY));
 
-    let validSpeeds = coordinates
-        .map(c => c.speed)
-        .filter(s => typeof s === 'number' && !isNaN(s));
-
-    let maxSpeed = Math.max(...validSpeeds);
-    let averageSpeed = validSpeeds.reduce((a, b) => a + b, 0) / validSpeeds.length;
-
-    let totalDistance = 0;
-
-    for (let i = 1; i < coordinates.length; i++) {
-        totalDistance += haversineDistance(coordinates[i - 1], coordinates[i]);
-    }
-
-    maxSpeedElement.innerText = `Speed: ${maxSpeed}`;
-    averageSpeedElement.innerText = `Average Speed: ${averageSpeed}`;
-    document.getElementById('distance').innerText = `Distance: ${(totalDistance / 1000).toFixed(2)} km`;
+    displayMetrics(coordinates);
 
     buildMap(coordinates);
 
@@ -60,6 +44,25 @@ buildMapButton.addEventListener('click', () => {
     buildMap(coords);
 });
 
+
+function displayMetrics(coordinates) {
+    let validSpeeds = coordinates
+        .map(c => c.speed)
+        .filter(s => typeof s === 'number' && !isNaN(s));
+
+    let maxSpeed = Math.max(...validSpeeds);
+    let averageSpeed = validSpeeds.reduce((a, b) => a + b, 0) / validSpeeds.length;
+
+    let totalDistance = 0;
+
+    for (let i = 1; i < coordinates.length; i++) {
+        totalDistance += haversineDistance(coordinates[i - 1], coordinates[i]);
+    }
+
+    maxSpeedElement.innerText = `Speed: ${maxSpeed.toFixed(2)}`;
+    averageSpeedElement.innerText = `Average Speed: ${averageSpeed.toFixed(2)}`;
+    distanceElement.innerText = `Distance: ${(totalDistance / 1000).toFixed(2)} km`;
+}
 
 function buildMap(coords) {
     const latLngs = coords.map(coord => [coord.latitude, coord.longitude]);
@@ -88,11 +91,11 @@ function success(position) {
     }
 
     let coordinates = JSON.parse(window.localStorage.getItem(LOCALSTORAGE_COORDINATES_KEY)) || [];
-    coordinates.push(geoEntity)
+    coordinates.push(geoEntity);
+
+    displayMetrics(coordinates)
 
     window.localStorage.setItem(LOCALSTORAGE_COORDINATES_KEY, JSON.stringify(coordinates));
-
-    console.log(geoEntity);
 }
 
 function error(e) {
