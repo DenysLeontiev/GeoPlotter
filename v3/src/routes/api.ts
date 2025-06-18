@@ -13,17 +13,21 @@ type HonoContext = {
 
 const api = new Hono<HonoContext>();
 
-// Allow requests from the client's origin
-api.use('*', cors({ origin: 'https://wars-adrian-gotten-certificate.trycloudflare.com' }));
-
-api.use('/*', async (c, next) => {
-	const authHeader = c.req.header('Authorization');
-	if (!authHeader || !authHeader.startsWith('tma ')) {
-		throw new HTTPException(401, { message: 'Unauthorized' });
+// Centralized error handler
+api.onError((err, c) => {
+	if (err instanceof HTTPException) {
+		// For expected errors, return the specific response
+		return err.getResponse();
 	}
+	// For unexpected errors, log them and return a generic 500 response
+	console.error('Unhandled API Error:', err);
+	return c.json({ message: 'Internal Server Error' }, 500);
+});
 
-	const initData = authHeader.substring(4);
+// Allow requests from any origin
+api.use('*', cors({ origin: '*' }));
 
+const verifyTelegramAuth = async (initData: string, botToken: string): Promise<{ valid: boolean; user?: any; authDate?: string }> => {
 	const params = new URLSearchParams(initData);
 	const hash = params.get('hash');
 	params.delete('hash');
@@ -37,19 +41,43 @@ api.use('/*', async (c, next) => {
 		'sign',
 	]);
 
-	const secret = await crypto.subtle.sign('HMAC', secretKey, new TextEncoder().encode(c.env.BOT_TOKEN));
-
+	const secret = await crypto.subtle.sign('HMAC', secretKey, new TextEncoder().encode(botToken));
 	const key = await crypto.subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
-
 	const calculatedHash = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(dataCheckString));
-
 	const hexHash = [...new Uint8Array(calculatedHash)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 	if (hexHash !== hash) {
-		throw new HTTPException(401, { message: 'Unauthorized: Invalid hash' });
+		return { valid: false };
 	}
 
-	const authDate = params.get('auth_date');
+	const userString = params.get('user');
+	const authDate = params.get('auth_date') ?? undefined;
+
+	try {
+		const user = JSON.parse(userString || 'null');
+		if (!user || !user.id) {
+			return { valid: false };
+		}
+		return { valid: true, user, authDate };
+	} catch {
+		return { valid: false };
+	}
+};
+
+api.use('/*', async (c, next) => {
+	const authHeader = c.req.header('Authorization');
+	if (!authHeader || !authHeader.startsWith('tma ')) {
+		throw new HTTPException(401, { message: 'Unauthorized: Missing Telegram Mini App authorization' });
+	}
+
+	const initData = authHeader.substring(4);
+	const { valid, user, authDate } = await verifyTelegramAuth(initData, c.env.BOT_TOKEN);
+
+	if (!valid || !user) {
+		throw new HTTPException(401, { message: 'Unauthorized: Invalid Telegram Mini App data' });
+	}
+
+	// Validate the request timestamp to prevent replay attacks
 	if (authDate) {
 		const now = Math.floor(Date.now() / 1000);
 		const diff = now - parseInt(authDate, 10);
@@ -59,66 +87,47 @@ api.use('/*', async (c, next) => {
 		}
 	}
 
-	// Extract user ID and set it in the context
-	const userString = params.get('user');
-	if (!userString) {
-		throw new HTTPException(401, { message: 'Unauthorized: User data not found' });
-	}
-	try {
-		const user = JSON.parse(userString);
-		if (!user || !user.id) {
-			throw new Error('Invalid user data');
-		}
-		c.set('userId', user.id);
-	} catch (e) {
-		throw new HTTPException(401, { message: 'Unauthorized: Invalid user data' });
-	}
-
+	c.set('userId', user.id);
 	await next();
 });
 
 api.get('/journeys', async (c) => {
 	const userId = c.get('userId');
 	const db = c.env.DB;
-	try {
-		const { results } = await db
-			.prepare('SELECT id, start_time, end_time, distance, avg_speed FROM journey WHERE user_id = ?')
-			.bind(userId)
-			.all();
-		return c.json(results);
-	} catch (error) {
-		console.error('D1 error fetching journeys:', error);
-		throw new HTTPException(500, { message: 'Failed to fetch journeys' });
-	}
+	const { results } = await db
+		.prepare('SELECT id, start_time, end_time, distance, avg_speed FROM journey WHERE user_id = ?')
+		.bind(userId)
+		.all();
+	return c.json(results);
 });
 
 api.get('/journeys/:id/coordinates', async (c) => {
 	const userId = c.get('userId');
 	const db = c.env.DB;
-	const { id } = c.req.param();
+	const id = c.req.param('id');
 
-	try {
-		// First, verify the journey belongs to the user
-		const { results: journeyResults } = await db.prepare('SELECT id FROM journey WHERE id = ? AND user_id = ?').bind(id, userId).all();
-
-		if (journeyResults.length === 0) {
-			throw new HTTPException(404, { message: 'Journey not found or does not belong to the user' });
-		}
-
-		// Then, fetch the coordinates for that journey
-		const { results: coordinateResults } = await db
-			.prepare('SELECT latitude, longitude, timestamp, heading, horizontal_accuracy FROM coordinate WHERE journey_id = ?')
-			.bind(id)
-			.all();
-
-		return c.json(coordinateResults);
-	} catch (error) {
-		if (error instanceof HTTPException) {
-			throw error; // Re-throw HTTP exceptions
-		}
-		console.error('D1 error fetching coordinates:', error);
-		throw new HTTPException(500, { message: 'Failed to fetch coordinates' });
+	const journeyId = parseInt(id, 10);
+	if (isNaN(journeyId)) {
+		throw new HTTPException(400, { message: 'Invalid journey ID format. Must be an integer.' });
 	}
+
+	const { results } = await db
+		.prepare(
+			`
+				SELECT c.latitude, c.longitude, c.timestamp, c.heading, c.horizontal_accuracy
+				FROM coordinate AS c
+				JOIN journey AS j ON c.journey_id = j.id
+				WHERE j.id = ? AND j.user_id = ?
+			`
+		)
+		.bind(journeyId, userId)
+		.all();
+
+	if (results.length === 0) {
+		throw new HTTPException(404, { message: "Journey not found or you don't have permission to view it." });
+	}
+
+	return c.json(results);
 });
 
 export default api;

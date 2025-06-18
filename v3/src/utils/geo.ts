@@ -1,7 +1,10 @@
 // Geo/statistics utilities
 import { Coordinate } from '../types/database';
 
-export function calculateTripStatistics(coords: Pick<Coordinate, 'latitude' | 'longitude' | 'timestamp'>[]): {
+export function calculateTripStatistics(
+	coords: Pick<Coordinate, 'latitude' | 'longitude' | 'timestamp'>[],
+	startTime: string
+): {
 	totalDistance: number;
 	avgSpeed: number;
 } {
@@ -10,9 +13,9 @@ export function calculateTripStatistics(coords: Pick<Coordinate, 'latitude' | 'l
 		totalDistance += calculateHaversineDistance(coords[i - 1], coords[i]);
 	}
 
-	const startTime = new Date(coords[0].timestamp).getTime();
+	const startTimeMs = new Date(startTime).getTime();
 	const endTime = new Date(coords[coords.length - 1].timestamp).getTime();
-	const durationSeconds = (endTime - startTime) / 1000;
+	const durationSeconds = (endTime - startTimeMs) / 1000;
 	const avgSpeed = durationSeconds > 0 ? totalDistance / durationSeconds : 0;
 
 	return { totalDistance, avgSpeed };

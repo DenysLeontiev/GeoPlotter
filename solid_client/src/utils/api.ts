@@ -1,7 +1,6 @@
 import type { Journey, Coordinate } from "../types/journey";
 
-const BASE_URL =
-    "https://manufactured-sparc-forbes-inspection.trycloudflare.com/api";
+const BASE_URL = "https://v3.golafoned.workers.dev/api";
 
 const getAuthHeaders = (): HeadersInit => {
     const headers = new Headers();

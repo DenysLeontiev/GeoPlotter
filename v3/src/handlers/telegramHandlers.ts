@@ -4,9 +4,7 @@ import { TelegramMessage } from '../types/telegram';
 import { sendMessage } from '../utils/telegram';
 import { calculateTripStatistics } from '../utils/geo';
 
-/**
- * Handles incoming messages from Telegram.
- */
+// Handles incoming messages from Telegram.
 export async function handleMessage(db: D1Database, msg: TelegramMessage, token: string) {
 	if (msg.location) {
 		if (msg.location.live_period) {
@@ -17,9 +15,7 @@ export async function handleMessage(db: D1Database, msg: TelegramMessage, token:
 	}
 }
 
-/**
- * Handles edited messages, which are typically live location updates.
- */
+//Handles edited messages, which are typically live location updates.
 export async function handleEditedMessage(db: D1Database, msg: TelegramMessage, token: string) {
 	if (msg.location) {
 		await handleLiveLocationUpdate(db, msg, token);
@@ -39,10 +35,47 @@ export async function handleLiveLocationStart(db: D1Database, msg: TelegramMessa
 		return;
 	}
 
+	if (!msg.location) {
+		console.error('Live location start message received without location data.');
+		await sendMessage(token, chatId, 'Sorry, I could not start tracking your journey as location data is missing.');
+		return;
+	}
+
 	try {
-		await db.prepare('INSERT INTO journey (user_id, start_time) VALUES (?, ?)').bind(msg.from.id, new Date().toISOString()).run();
+		await db
+			.prepare('INSERT INTO journey (user_id, start_time) VALUES (?, ?)')
+			.bind(msg.from.id, new Date(msg.date * 1000).toISOString())
+			.run();
+
+		const { results } = await db
+			.prepare('SELECT id FROM journey WHERE user_id = ? ORDER BY start_time DESC LIMIT 1')
+			.bind(msg.from.id)
+			.all<{ id: number }>();
+
+		const lastJourney = results?.[0];
+		if (!lastJourney) {
+			console.error('Could not retrieve journey after creation.');
+			await sendMessage(token, chatId, 'Sorry, I could not start tracking your journey.');
+			return;
+		}
+		const journeyId = lastJourney.id;
+
+		// Insert the first coordinate
+		await db
+			.prepare(
+				'INSERT INTO coordinate (journey_id, latitude, longitude, timestamp, heading, horizontal_accuracy) VALUES (?, ?, ?, ?, ?, ?)'
+			)
+			.bind(
+				journeyId,
+				msg.location.latitude,
+				msg.location.longitude,
+				new Date(msg.date * 1000).toISOString(),
+				msg.location.heading ?? null,
+				msg.location.horizontal_accuracy ?? null
+			)
+			.run();
 	} catch (error) {
-		console.error('Error inserting journey:', error);
+		console.error('Error inserting journey:', error instanceof Error ? { message: error.message, cause: error.cause } : error);
 		await sendMessage(token, chatId, 'Sorry, I could not start tracking your journey.');
 		return;
 	}
@@ -84,7 +117,7 @@ export async function handleLiveLocationUpdate(db: D1Database, msg: TelegramMess
 		const { results } = await db
 			.prepare('SELECT id FROM journey WHERE user_id = ? ORDER BY start_time DESC LIMIT 1')
 			.bind(msg.from.id)
-			.all<{ id: string }>();
+			.all<{ id: number }>();
 
 		const lastJourney = results?.[0];
 
@@ -113,7 +146,7 @@ export async function handleLiveLocationUpdate(db: D1Database, msg: TelegramMess
 			)
 			.run();
 	} catch (error) {
-		console.error('Error handling live location update:', error);
+		console.error('Error handling live location update:', error instanceof Error ? { message: error.message, cause: error.cause } : error);
 	}
 }
 
@@ -128,9 +161,9 @@ export async function handleLiveLocationEnd(db: D1Database, msg: TelegramMessage
 
 	try {
 		const { results } = await db
-			.prepare('SELECT id FROM journey WHERE user_id = ? ORDER BY start_time DESC LIMIT 1')
+			.prepare('SELECT id, start_time FROM journey WHERE user_id = ? ORDER BY start_time DESC LIMIT 1')
 			.bind(msg.from.id)
-			.all<{ id: string }>();
+			.all<{ id: number; start_time: string }>();
 
 		const lastJourney = results?.[0];
 
@@ -149,7 +182,7 @@ export async function handleLiveLocationEnd(db: D1Database, msg: TelegramMessage
 			return;
 		}
 
-		const { totalDistance, avgSpeed } = calculateTripStatistics(coords);
+		const { totalDistance, avgSpeed } = calculateTripStatistics(coords, lastJourney.start_time);
 
 		await db
 			.prepare('UPDATE journey SET end_time = ?, distance = ?, avg_speed = ? WHERE id = ?')
@@ -164,6 +197,6 @@ export async function handleLiveLocationEnd(db: D1Database, msg: TelegramMessage
 			)} m/s`
 		);
 	} catch (error) {
-		console.error('Error handling live location end:', error);
+		console.error('Error handling live location end:', error instanceof Error ? { message: error.message, cause: error.cause } : error);
 	}
 }

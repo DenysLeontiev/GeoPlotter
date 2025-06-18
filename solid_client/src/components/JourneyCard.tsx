@@ -1,4 +1,4 @@
-import { createSignal, Show, type Component } from "solid-js";
+import { createSignal, Show, type Component, lazy } from "solid-js";
 import {
     formatDistance,
     formatSpeed,
@@ -6,8 +6,9 @@ import {
     formatDateTime,
 } from "../utils/formatters";
 import type { Journey, Coordinate } from "../types/journey";
-import Map from "./Map";
 import { getCoordinates } from "../utils/api";
+
+const Map = lazy(() => import("./Map"));
 
 const JourneyCard: Component<{
     journeyData: Journey;
