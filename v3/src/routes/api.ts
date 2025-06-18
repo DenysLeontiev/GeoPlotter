@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { Env } from '../types/database';
-import { createClient } from '@supabase/supabase-js';
 
 // Define Hono context with typed variables
 type HonoContext = {
@@ -80,38 +79,46 @@ api.use('/*', async (c, next) => {
 
 api.get('/journeys', async (c) => {
 	const userId = c.get('userId');
-	const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_API_KEY);
-	const { data, error } = await supabase.from('journey').select('id, start_time, end_time, distance, avg_speed').eq('user_id', userId);
-	if (error) {
-		console.error('Supabase error fetching journeys:', error);
+	const db = c.env.DB;
+	try {
+		const { results } = await db
+			.prepare('SELECT id, start_time, end_time, distance, avg_speed FROM journey WHERE user_id = ?')
+			.bind(userId)
+			.all();
+		return c.json(results);
+	} catch (error) {
+		console.error('D1 error fetching journeys:', error);
 		throw new HTTPException(500, { message: 'Failed to fetch journeys' });
 	}
-	return c.json(data);
 });
 
 api.get('/journeys/:id/coordinates', async (c) => {
 	const userId = c.get('userId');
-	const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_API_KEY);
+	const db = c.env.DB;
 	const { id } = c.req.param();
 
-	// First, verify the journey belongs to the user
-	const { data: journeyData, error: journeyError } = await supabase
-		.from('journey')
-		.select('id')
-		.eq('id', id)
-		.eq('user_id', userId)
-		.single();
+	try {
+		// First, verify the journey belongs to the user
+		const { results: journeyResults } = await db.prepare('SELECT id FROM journey WHERE id = ? AND user_id = ?').bind(id, userId).all();
 
-	if (journeyError || !journeyData) {
-		throw new HTTPException(404, { message: 'Journey not found or access denied' });
-	}
+		if (journeyResults.length === 0) {
+			throw new HTTPException(404, { message: 'Journey not found or does not belong to the user' });
+		}
 
-	const { data, error } = await supabase.from('coordinate').select('latitude, longitude, timestamp').eq('journey_id', id);
-	if (error) {
-		console.error(`Supabase error fetching coordinates for journey ${id}:`, error);
+		// Then, fetch the coordinates for that journey
+		const { results: coordinateResults } = await db
+			.prepare('SELECT latitude, longitude, timestamp, heading, horizontal_accuracy FROM coordinate WHERE journey_id = ?')
+			.bind(id)
+			.all();
+
+		return c.json(coordinateResults);
+	} catch (error) {
+		if (error instanceof HTTPException) {
+			throw error; // Re-throw HTTP exceptions
+		}
+		console.error('D1 error fetching coordinates:', error);
 		throw new HTTPException(500, { message: 'Failed to fetch coordinates' });
 	}
-	return c.json(data);
 });
 
 export default api;

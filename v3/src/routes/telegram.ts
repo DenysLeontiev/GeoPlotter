@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createClient } from '@supabase/supabase-js';
 import { Env } from '../types/database';
 import { isValidTelegramUpdate } from '../types/telegram';
 import { handleMessage, handleEditedMessage } from '../handlers/telegramHandlers';
@@ -14,7 +13,7 @@ router.get('/', (c) => {
 });
 
 router.post('/update', async (c) => {
-	const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_API_KEY);
+	const db = c.env.DB;
 	const token = c.env.BOT_TOKEN;
 
 	try {
@@ -26,9 +25,9 @@ router.post('/update', async (c) => {
 		}
 
 		if (update.message) {
-			await handleMessage(supabase, update.message, token);
+			await handleMessage(db, update.message, token);
 		} else if (update.edited_message) {
-			await handleEditedMessage(supabase, update.edited_message, token);
+			await handleEditedMessage(db, update.edited_message, token);
 		}
 
 		return c.text('OK', 200);

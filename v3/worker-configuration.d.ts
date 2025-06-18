@@ -6,6 +6,7 @@ declare namespace Cloudflare {
 		BOT_TOKEN: string;
 		SUPABASE_URL: string;
 		SUPABASE_API_KEY: string;
+		DB: D1Database;
 	}
 }
 interface Env extends Cloudflare.Env {}
