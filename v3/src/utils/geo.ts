@@ -1,24 +1,32 @@
 // Geo/statistics utilities
 import { Coordinate } from '../types/database';
 
-export function calculateTripStatistics(
-	coords: Pick<Coordinate, 'latitude' | 'longitude' | 'timestamp'>[],
-	startTime: string
-): {
+export function calculateTripStatistics(coords: Pick<Coordinate, 'latitude' | 'longitude' | 'timestamp'>[]): {
 	totalDistance: number;
 	avgSpeed: number;
+	durationSeconds: number;
 } {
-	let totalDistance = 0;
+	let totalDistanceMeters = 0;
 	for (let i = 1; i < coords.length; i++) {
-		totalDistance += calculateHaversineDistance(coords[i - 1], coords[i]);
+		const dist = calculateHaversineDistance(coords[i - 1], coords[i]);
+		totalDistanceMeters += dist;
 	}
 
-	const startTimeMs = new Date(startTime).getTime();
-	const endTime = new Date(coords[coords.length - 1].timestamp).getTime();
-	const durationSeconds = (endTime - startTimeMs) / 1000;
-	const avgSpeed = durationSeconds > 0 ? totalDistance / durationSeconds : 0;
+	const sortedCoords = coords.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-	return { totalDistance, avgSpeed };
+	const startTime = new Date(sortedCoords[0].timestamp).getTime();
+	const endTime = new Date(sortedCoords[sortedCoords.length - 1].timestamp).getTime();
+
+	const durationSeconds = (endTime - startTime) / 1000;
+	const durationHours = durationSeconds / 3600;
+
+	// Convert distance to kilometers
+	const totalDistance = totalDistanceMeters / 1000;
+
+	// Calculate speed in km/hour
+	const avgSpeed = durationHours > 0 ? totalDistance / durationHours : 0;
+
+	return { totalDistance, avgSpeed, durationSeconds };
 }
 
 export function calculateHaversineDistance(

@@ -42,10 +42,7 @@ export async function handleLiveLocationStart(db: D1Database, msg: TelegramMessa
 	}
 
 	try {
-		await db
-			.prepare('INSERT INTO journey (user_id, start_time) VALUES (?, ?)')
-			.bind(msg.from.id, new Date(msg.date * 1000).toISOString())
-			.run();
+		await db.prepare('INSERT INTO journey (user_id, start_time) VALUES (?, ?)').bind(msg.from.id, new Date().toISOString()).run();
 
 		const { results } = await db
 			.prepare('SELECT id FROM journey WHERE user_id = ? ORDER BY start_time DESC LIMIT 1')
@@ -69,7 +66,7 @@ export async function handleLiveLocationStart(db: D1Database, msg: TelegramMessa
 				journeyId,
 				msg.location.latitude,
 				msg.location.longitude,
-				new Date(msg.date * 1000).toISOString(),
+				new Date().toISOString(),
 				msg.location.heading ?? null,
 				msg.location.horizontal_accuracy ?? null
 			)
@@ -140,7 +137,7 @@ export async function handleLiveLocationUpdate(db: D1Database, msg: TelegramMess
 				journeyId,
 				msg.location.latitude,
 				msg.location.longitude,
-				new Date(msg.date * 1000).toISOString(),
+				new Date().toISOString(),
 				msg.location.heading ?? null,
 				msg.location.horizontal_accuracy ?? null
 			)
@@ -182,19 +179,16 @@ export async function handleLiveLocationEnd(db: D1Database, msg: TelegramMessage
 			return;
 		}
 
-		const { totalDistance, avgSpeed } = calculateTripStatistics(coords, lastJourney.start_time);
+		const { totalDistance, avgSpeed, durationSeconds } = calculateTripStatistics(coords);
 
 		await db
 			.prepare('UPDATE journey SET end_time = ?, distance = ?, avg_speed = ? WHERE id = ?')
 			.bind(new Date().toISOString(), totalDistance, avgSpeed, lastJourney.id)
 			.run();
-
 		await sendMessage(
 			token,
 			chatId,
-			`Live location tracking for ${username} ended.\nDistance: ${(totalDistance / 1000).toFixed(2)} km\nAvg. Speed: ${avgSpeed.toFixed(
-				2
-			)} m/s`
+			`Live location tracking for ${username} ended.\nDistance: ${totalDistance.toFixed(2)} km\nAvg. Speed: ${avgSpeed.toFixed(2)} km/h`
 		);
 	} catch (error) {
 		console.error('Error handling live location end:', error instanceof Error ? { message: error.message, cause: error.cause } : error);

@@ -11,5 +11,5 @@ export interface Journey {
     end_time: string | null;
     distance: number | null;
     avg_speed: number | null;
-    coordinates?: Coordinate[];
+    coordinates: Coordinate[];
 }

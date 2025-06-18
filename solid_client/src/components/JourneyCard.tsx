@@ -5,9 +5,8 @@ import {
     formatDuration,
     formatDateTime,
 } from "../utils/formatters";
-import type { Journey, Coordinate } from "../types/journey";
+import type { Journey } from "../types/journey";
 import type { DistanceUnit, SpeedUnit } from "../types/settings";
-import { getCoordinates } from "../utils/api";
 
 const Map = lazy(() => import("./Map"));
 
@@ -19,33 +18,10 @@ const JourneyCard: Component<{
     speedUnit: SpeedUnit;
 }> = (props) => {
     const [isExpanded, setIsExpanded] = createSignal(false);
-    const [coordinates, setCoordinates] = createSignal<Coordinate[]>([]);
-    const [isLoading, setIsLoading] = createSignal(false);
-    const [error, setError] = createSignal<string | null>(null);
     const journey = props.journeyData;
 
-    const toggleExpand = async () => {
-        const expanding = !isExpanded();
-        setIsExpanded(expanding);
-
-        if (expanding && coordinates().length === 0) {
-            setIsLoading(true);
-            setError(null);
-            try {
-                const fetchedCoordinates = await getCoordinates(journey.id);
-                setCoordinates(fetchedCoordinates);
-            } catch (err) {
-                if (err instanceof Error) {
-                    setError(err.message);
-                } else {
-                    setError(
-                        "An unknown error occurred while fetching coordinates."
-                    );
-                }
-            } finally {
-                setIsLoading(false);
-            }
-        }
+    const toggleExpand = () => {
+        setIsExpanded(!isExpanded());
     };
 
     return (
@@ -77,10 +53,12 @@ const JourneyCard: Component<{
                             Distance
                         </p>
                         <p class="text-xl font-bold text-gray-900 dark:text-white">
-                            {formatDistance(
-                                journey.distance,
-                                props.distanceUnit
-                            )}
+                            {journey.distance !== null
+                                ? formatDistance(
+                                      journey.distance,
+                                      props.distanceUnit
+                                  )
+                                : "N/A"}
                         </p>
                     </div>
                     <div>
@@ -88,7 +66,12 @@ const JourneyCard: Component<{
                             Avg. Speed
                         </p>
                         <p class="text-xl font-bold text-gray-900 dark:text-white">
-                            {formatSpeed(journey.avg_speed, props.speedUnit)}
+                            {journey.avg_speed !== null
+                                ? formatSpeed(
+                                      journey.avg_speed,
+                                      props.speedUnit
+                                  )
+                                : "N/A"}
                         </p>
                     </div>
                     <div>
@@ -105,37 +88,12 @@ const JourneyCard: Component<{
                 </div>
             </div>
             <Show when={isExpanded()}>
-                <div class="bg-gray-200 dark:bg-gray-700">
-                    <Show when={isLoading()}>
-                        <p class="text-center text-gray-500 dark:text-gray-400">
-                            Loading map...
-                        </p>
-                    </Show>
-                    <Show when={error()}>
-                        <p class="text-center text-red-500">Error: {error()}</p>
-                    </Show>
-                    <Show
-                        when={
-                            !isLoading() && !error() && coordinates().length > 0
-                        }
-                    >
-                        <Map
-                            journeyId={journey.id}
-                            coordinates={coordinates()}
-                            isDark={props.isDark}
-                        />
-                    </Show>
-                    <Show
-                        when={
-                            !isLoading() &&
-                            !error() &&
-                            coordinates().length === 0
-                        }
-                    >
-                        <p class="text-center text-gray-500 dark:text-gray-400">
-                            No coordinates to draw.
-                        </p>
-                    </Show>
+                <div class="h-64 bg-gray-200 dark:bg-gray-700 w-full">
+                    <Map
+                        journeyId={journey.id}
+                        coordinates={journey.coordinates}
+                        isDark={props.isDark}
+                    />
                 </div>
             </Show>
         </div>

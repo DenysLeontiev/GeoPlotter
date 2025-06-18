@@ -94,29 +94,65 @@ api.use('/*', async (c, next) => {
 api.get('/journeys', async (c) => {
 	const userId = c.get('userId');
 	const db = c.env.DB;
-	const { results } = await db
-		.prepare('SELECT id, start_time, end_time, distance, avg_speed FROM journey WHERE user_id = ?')
-		.bind(userId)
+
+	// Get page and limit from query params, with defaults
+	const page = parseInt(c.req.query('page') || '1', 10);
+	const limit = parseInt(c.req.query('limit') || '20', 10);
+	const offset = (page - 1) * limit;
+
+	// Get a paginated list of journeys
+	const { results: journeys } = await db
+		.prepare(
+			'SELECT id, start_time, end_time, distance, avg_speed FROM journey WHERE user_id = ? ORDER BY start_time DESC LIMIT ? OFFSET ?'
+		)
+		.bind(userId, limit, offset)
 		.all();
-	return c.json(results);
+
+	if (!journeys || journeys.length === 0) {
+		return c.json([]);
+	}
+
+	// Get the IDs of the journeys
+	const journeyIds = (journeys as any[]).map((j) => j.id);
+
+	// Fetch all coordinates for these journeys in a single query
+	const placeholders = journeyIds.map(() => '?').join(',');
+	const { results: coordinates } = await db
+		.prepare(
+			`SELECT journey_id, latitude, longitude, timestamp FROM coordinate WHERE journey_id IN (${placeholders}) ORDER BY timestamp ASC`
+		)
+		.bind(...journeyIds)
+		.all();
+
+	// Group coordinates by journey_id
+	const coordinatesByJourney = (coordinates as any[]).reduce((acc, coord) => {
+		if (!acc[coord.journey_id]) {
+			acc[coord.journey_id] = [];
+		}
+		acc[coord.journey_id].push(coord);
+		return acc;
+	}, {});
+
+	// Combine journeys with their coordinates
+	const journeysWithCoordinates = (journeys as any[]).map((journey) => ({
+		...journey,
+		coordinates: coordinatesByJourney[journey.id] || [],
+	}));
+
+	return c.json(journeysWithCoordinates);
 });
 
-api.get('/journeys/:id/coordinates', async (c) => {
+api.get('/journeys/:id', async (c) => {
 	const userId = c.get('userId');
 	const db = c.env.DB;
-	const id = c.req.param('id');
-
-	const journeyId = parseInt(id, 10);
-	if (isNaN(journeyId)) {
-		throw new HTTPException(400, { message: 'Invalid journey ID format. Must be an integer.' });
-	}
+	const journeyId = c.req.param('id');
 
 	const { results } = await db
 		.prepare(
 			`
-				SELECT c.latitude, c.longitude, c.timestamp, c.heading, c.horizontal_accuracy
-				FROM coordinate AS c
-				JOIN journey AS j ON c.journey_id = j.id
+				SELECT j.id, j.start_time, j.end_time, j.distance, j.avg_speed, c.latitude, c.longitude, c.timestamp
+				FROM journey AS j
+				LEFT JOIN coordinate AS c ON j.id = c.journey_id
 				WHERE j.id = ? AND j.user_id = ?
 			`
 		)

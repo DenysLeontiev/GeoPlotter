@@ -1,6 +1,16 @@
-import type { Journey, Coordinate } from "../types/journey";
+import type { Journey } from "../types/journey";
 
 const BASE_URL = "https://v3.golafoned.workers.dev/api";
+
+// Custom error class for API errors
+export class ApiError extends Error {
+    status?: number;
+    constructor(message: string, status?: number) {
+        super(message);
+        this.name = "ApiError";
+        this.status = status;
+    }
+}
 
 const getAuthHeaders = (): HeadersInit => {
     const headers = new Headers();
@@ -10,6 +20,7 @@ const getAuthHeaders = (): HeadersInit => {
             `tma ${window.Telegram.WebApp.initData}`
         );
     } else {
+        // For development/debugging without Telegram
         console.warn(
             "Telegram WebApp context is not available. Sending unauthenticated request."
         );
@@ -17,43 +28,53 @@ const getAuthHeaders = (): HeadersInit => {
     return headers;
 };
 
-export const getJourneys = async (): Promise<Journey[]> => {
+export const getJourneys = async (
+    page: number,
+    limit: number
+): Promise<Journey[]> => {
+    let response: Response;
     try {
-        const response = await fetch(`${BASE_URL}/journeys`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        console.log("Fetched journeys:", data);
-        return data as Journey[];
-    } catch (error) {
-        console.error("Failed to fetch journeys:", error);
-        throw error;
-    }
-};
-
-export const getCoordinates = async (
-    journeyId: string
-): Promise<Coordinate[]> => {
-    try {
-        const response = await fetch(
-            `${BASE_URL}/journeys/${journeyId}/coordinates`,
+        response = await fetch(
+            `${BASE_URL}/journeys?page=${page}&limit=${limit}`,
             {
                 headers: getAuthHeaders(),
             }
         );
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        return data as Coordinate[];
     } catch (error) {
-        console.error(
-            `Failed to fetch coordinates for journey ${journeyId}:`,
-            error
-        );
-        throw error;
+        // Network errors or other issues with the fetch call itself
+        console.error("Network error while fetching journeys:", error);
+        throw new ApiError("Network error. Please check your connection.");
+    }
+
+    if (!response.ok) {
+        if (response.status === 401) {
+            throw new ApiError(
+                "Authentication failed. Please restart the app.",
+                401
+            );
+        }
+
+        // Try to parse a meaningful error message from the response body
+        try {
+            const errorData = await response.json();
+            const message =
+                errorData.message || `HTTP error! Status: ${response.status}`;
+            throw new ApiError(message, response.status);
+        } catch (e) {
+            // If the body isn't JSON or doesn't have a message
+            throw new ApiError(
+                `HTTP error! Status: ${response.status}`,
+                response.status
+            );
+        }
+    }
+
+    try {
+        const data = await response.json();
+        console.log(`Fetched page ${page} of journeys:`, data);
+        return data as Journey[];
+    } catch (error) {
+        console.error("Failed to parse journeys JSON:", error);
+        throw new ApiError("Failed to parse server response.");
     }
 };
