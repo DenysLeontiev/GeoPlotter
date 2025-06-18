@@ -165,7 +165,7 @@ export async function handleLiveLocationEnd(db: D1Database, msg: TelegramMessage
 		const lastJourney = results?.[0];
 
 		if (!lastJourney) {
-			console.error('No journey found for user.');
+			console.error('Error: No journey found for user.');
 			return;
 		}
 
