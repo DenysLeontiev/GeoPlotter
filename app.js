@@ -59,8 +59,8 @@ function displayMetrics(coordinates) {
         totalDistance += haversineDistance(coordinates[i - 1], coordinates[i]);
     }
 
-    maxSpeedElement.innerText = `Speed: ${maxSpeed.toFixed(2)}`;
-    averageSpeedElement.innerText = `Average Speed: ${averageSpeed.toFixed(2)}`;
+    maxSpeedElement.innerText = `Speed: ${(maxSpeed * 3.6).toFixed(2)} km/h`;
+    averageSpeedElement.innerText = `Average Speed: ${(averageSpeed * 3.6).toFixed(2)} km/h`;
     distanceElement.innerText = `Distance: ${(totalDistance / 1000).toFixed(2)} km`;
 }
 
