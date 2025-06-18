@@ -1,11 +1,14 @@
 import { createSignal, onMount, For, Show, type Component } from "solid-js";
-import ThemeToggle from "./components/ThemeToggle";
+import SettingsMenu from "./components/SettingsMenu";
 import JourneyCard from "./components/JourneyCard";
 import type { Journey } from "./types/journey";
 import { getJourneys } from "./utils/api";
+import type { DistanceUnit, SpeedUnit } from "./types/settings";
 
 const App: Component = () => {
     const [isDark, setIsDark] = createSignal(false);
+    const [distanceUnit, setDistanceUnit] = createSignal<DistanceUnit>("km");
+    const [speedUnit, setSpeedUnit] = createSignal<SpeedUnit>("km/h");
     const [journeys, setJourneys] = createSignal<Journey[]>([]);
     const [loading, setLoading] = createSignal(true);
     const [error, setError] = createSignal<string | null>(null);
@@ -29,7 +32,6 @@ const App: Component = () => {
                     new Date(a.start_time).getTime()
             );
             setJourneys(sortedJourneys);
-            console.log("Journeys set in state:", sortedJourneys);
         } catch (err) {
             if (err instanceof Error) {
                 setError(err.message);
@@ -62,7 +64,15 @@ const App: Component = () => {
                     <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
                         Your Journeys
                     </h1>
-                    <ThemeToggle isDark={isDark()} toggleTheme={toggleTheme} />
+                    <SettingsMenu
+                        isDark={isDark()}
+                        toggleTheme={toggleTheme}
+                        distanceUnit={distanceUnit}
+                        setDistanceUnit={setDistanceUnit}
+                        speedUnit={speedUnit}
+                        setSpeedUnit={setSpeedUnit}
+                        journeyCount={journeys().length}
+                    />
                 </header>
 
                 <Show when={loading()}>
@@ -84,6 +94,8 @@ const App: Component = () => {
                                 <JourneyCard
                                     journeyData={journey}
                                     isDark={isDark()}
+                                    distanceUnit={distanceUnit()}
+                                    speedUnit={speedUnit()}
                                 />
                             )}
                         </For>

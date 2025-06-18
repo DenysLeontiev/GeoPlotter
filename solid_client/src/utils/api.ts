@@ -18,36 +18,42 @@ const getAuthHeaders = (): HeadersInit => {
 };
 
 export const getJourneys = async (): Promise<Journey[]> => {
-    const response = await fetch(`${BASE_URL}/journeys`, {
-        headers: getAuthHeaders(),
-    });
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-            `Failed to fetch journeys: ${response.status} ${errorText}`
-        );
+    try {
+        const response = await fetch(`${BASE_URL}/journeys`, {
+            headers: getAuthHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log("Fetched journeys:", data);
+        return data as Journey[];
+    } catch (error) {
+        console.error("Failed to fetch journeys:", error);
+        throw error;
     }
-    const data = await response.json();
-    console.log("Fetched journeys:", data);
-    return data;
 };
 
 export const getCoordinates = async (
     journeyId: string
 ): Promise<Coordinate[]> => {
-    const response = await fetch(
-        `${BASE_URL}/journeys/${journeyId}/coordinates`,
-        {
-            headers: getAuthHeaders(),
-        }
-    );
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-            `Failed to fetch coordinates: ${response.status} ${errorText}`
+    try {
+        const response = await fetch(
+            `${BASE_URL}/journeys/${journeyId}/coordinates`,
+            {
+                headers: getAuthHeaders(),
+            }
         );
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return data as Coordinate[];
+    } catch (error) {
+        console.error(
+            `Failed to fetch coordinates for journey ${journeyId}:`,
+            error
+        );
+        throw error;
     }
-    const data = await response.json();
-    console.log(`Fetched coordinates for journey ${journeyId}:`, data);
-    return data;
 };

@@ -1,12 +1,32 @@
+import type { DistanceUnit, SpeedUnit } from "../types/settings";
+
 // Utility functions for formatting journey data
-export const formatDistance = (meters: number | null | undefined) => {
-    if (meters === null || meters === undefined) return "N/A";
-    return (meters / 1000).toFixed(2) + " km";
+export const formatDistance = (
+    km: number | null | undefined,
+    unit: DistanceUnit
+) => {
+    if (km === null || km === undefined) return "N/A";
+
+    if (unit === "miles") {
+        return (km * 0.621371).toFixed(2) + " miles";
+    } else if (unit === "meters") {
+        return (km * 1000).toFixed(0) + " meters";
+    }
+    return km.toFixed(2) + " km";
 };
 
-export const formatSpeed = (mps: number | null | undefined) => {
-    if (mps === null || mps === undefined) return "N/A";
-    return (mps * 3.6).toFixed(1) + " km/h";
+export const formatSpeed = (
+    kph: number | null | undefined,
+    unit: SpeedUnit
+) => {
+    if (kph === null || kph === undefined) return "N/A";
+
+    if (unit === "mph") {
+        return (kph * 0.621371).toFixed(1) + " mph";
+    } else if (unit === "m/s") {
+        return (kph / 3.6).toFixed(2) + " m/s";
+    }
+    return kph.toFixed(1) + " km/h";
 };
 
 export const formatDuration = (
